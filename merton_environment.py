@@ -251,7 +251,7 @@ class MertonEnvironment:
             # * In case of weight for merton model we assume that the
             # * agent is able to go short in his/hers positions
             self.high = np.array([15], dtype=np.float32)
-            self.low = np.array([-15], dtype=np.float32)
+            self.low = np.array([0], dtype=np.float32)
 
         def sample(self):  # -> ndarray:
             """Sample random actions from a uniformly distributed
