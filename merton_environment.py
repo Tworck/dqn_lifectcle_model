@@ -242,16 +242,11 @@ class MertonEnvironment:
                 stochastic variables.
         """
 
-        def __init__(self, rng, n_paths):
+        def __init__(self, rng, n_paths, n_action_discr):
             self.rng = rng
             self.n_paths = n_paths
-            self.shape = (1,)
-            # Attributes high and low are constructed according to the
-            # "class" Box in open AI gym
-            # * In case of weight for merton model we assume that the
-            # * agent is able to go short in his/hers positions
-            self.high = np.array([15], dtype=np.float32)
-            self.low = np.array([0], dtype=np.float32)
+            self.n_action_discr = n_action_discr
+            self.shape = (n_action_discr,)
 
         def sample(self):  # -> ndarray:
             """Sample random actions from a uniformly distributed
@@ -276,10 +271,7 @@ class MertonEnvironment:
             # Pull a weight from the distribution. It can allow the agent to
             # go into a short position. This value is decided as the mean
             # of distribution.
-            actions = self.rng.uniform(
-                low=self.low, high=self.high, size=(self.n_paths, 1)
-            )
-            # print(f"{actions.shape= }")
+            actions = self.rng.randrange(self.n_action_discr)
             # Return a relative action
             return actions
 

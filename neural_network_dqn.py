@@ -67,20 +67,18 @@ class NetworkUtils:
             logger.error(
                 "--- Could not load checkpoint, some attributes are missing ---"
             )
-
-
 class DQN(nn.Module, NetworkUtils):
     def __init__(self, 
                 name:str, 
                 state_dims: int,
                 action_dims: int,
-                # env,
+                env,
                 checkpoint_dir: str = "models/tmp/dqn",):
         super(DQN, self).__init__()
 
         self.name = name
         self.checkpoint_dir = checkpoint_dir
-        # self.env = env
+        self.env = env
 
         self.layers = nn.Sequential(
             nn.Linear(state_dims, 128),
@@ -100,23 +98,12 @@ class DQN(nn.Module, NetworkUtils):
     
     def act(self, state, epsilon):
         if random.random() > epsilon:
-            # state   = Variable(torch.FloatTensor(state).unsqueeze(0), volatile=True)
-            # state should be a tensor at this point
-            #! this is an essential step and needs to be checked
-            #? is this possible in DQN. The q value is the action
-            #? Is this continous approach even sensible??
             q_value = self.forward(state)
             action = q_value
-            # print(f"{q_value=}")
-            # # why the index and not directly the maximum q value...
-            # action  = q_value.max(1)[1].data[0].item()
-            # print(f"{action=}")
+            action  = q_value.argmax().item()
+
         else:
-            # action = random.randrange(env.action_space.n)
-            # action = self.env.action_space.sample()
-            action = np.random.rng.uniform(
-                low=0, high=15, size=(1, 1)
-            )
+            action = self.env.action_space.sample()
         return action
 
 #%%
