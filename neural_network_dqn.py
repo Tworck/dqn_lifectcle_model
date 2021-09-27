@@ -81,11 +81,11 @@ class DQN(nn.Module, NetworkUtils):
         self.env = env
 
         self.layers = nn.Sequential(
-            nn.Linear(state_dims, 128),
+            nn.Linear(self.env.observation_space.shape[0], 128),
             nn.ReLU(),
             nn.Linear(128, 128),
             nn.ReLU(),
-            nn.Linear(128, action_dims)
+            nn.Linear(128, self.env.action_space.shape[0])
         )
 
         # Initialize device to which the network should be passed to
@@ -98,12 +98,17 @@ class DQN(nn.Module, NetworkUtils):
     
     def act(self, state, epsilon):
         if random.random() > epsilon:
-            q_value = self.forward(state)
+            print("greedy")
+            
+            q_value = self.forward(torch.tensor(state).to(self.device))
+            # print(f"{q_value=}")
             action = q_value
             action  = q_value.argmax().item()
 
         else:
+            print("random")
             action = self.env.action_space.sample()
+            print(f"{action=}")
         return action
 
 #%%

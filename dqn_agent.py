@@ -15,9 +15,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class TD3Agent:
+class DQNAgent:
     def __init__(
         self,
+        name,
         environment,
         dqn,
         optimizer,
@@ -28,10 +29,10 @@ class TD3Agent:
         epsilon_start=1.0,
         epsilon_final=0.01,
         epsilon_decay=500,
-        save_freq: int = 1
     ):
 
         logger.info("Initializing DQN-Agent...")
+        self.name = name
 
         self.env = environment
         self.dqn = dqn
@@ -49,11 +50,28 @@ class TD3Agent:
         self.epsilon_start = epsilon_start
         self.epsilon_final = epsilon_final
         self.epsilon_decay = epsilon_decay
-        self.save_freq = save_freq
 
         self.memory = ReplayBuffer(
             self.state_dims, self.action_dims, self.mem_factor, self.n_paths
         )
+
+    def save_models(self):
+        """
+        Calls the save_checkpoint method for all of the TD3 agents'
+        networks and saves them.
+        """
+        logger.info(f"Saving models to hard drive...")
+        self.dqn.save_checkpoint()
+        logger.info(f"Finished saving models to hard drive...")
+
+    def load_models(self):
+        """
+        Calls the load_checkpoint method for all of the TD3 agents'
+        networks and loads them.
+        """
+        logger.info(f"Loading models from hard drive...")
+        self.dqn.load_checkpoint()
+        logger.info(f"Finished loading models from hard drive...")
 
     def epsilon_by_epoch(self, epoch):
         epsilon = self.epsilon_final + \
@@ -61,30 +79,44 @@ class TD3Agent:
             math.exp(-1. * epoch / self.epsilon_decay)
         return epsilon
 
-    def train(self):
+    def train(self, render: bool = False):
+        # The best reward is set to the lowest possible reward at the start
+        # to have a benchmark for when to save the model
+        best_reward = 0
+        c_reward_history = []
+        epoch_rewards_history = []
+        epoch_losses = []
 
-        episode_losses = []
-        epoch_rewards = []
+        # episode_losses = []
+        # all_rewards = []
 
         for epoch in range(self.epochs):
+
+            episode_len = 0
             cumulative_rewards = 0
+            episode_reward_history = []
+
+            episode_loss = []
 
             states = self.env.reset()
             dones = False
 
             while not dones:
-                epsilon = self.epsilon_by_epoch()
+                epsilon = self.epsilon_by_epoch(epoch)
 
-                actions = self.dqn(states)
+                actions = self.dqn.act(states, epsilon)
                 next_states, rewards, dones, info = self.env.step(actions)
+
+                if render:
+                    self.env.render()
 
                 self.memory.store_transition(
                     states, actions, rewards, next_states, dones)
-
+                    
                 # check if the replay memory is filled enough to sample from
-                # if the required batch_size is larger than the total amount of
+                # if the required batch_size is smaller than the total amount of
                 # experiences([states,actions,next_states,rewards,dones]) in the replay
-                # buffer, the function learn() is stopped at this point
+                # buffer, the agent should learn (optimiye) at this point
                 if self.memory.mem_cntr > self.batch_size:
 
                     # Get random batch from replay memory
@@ -93,7 +125,8 @@ class TD3Agent:
                     states = memory_sample["states"].to(self.dqn.device)
                     actions = memory_sample["actions"].to(self.dqn.device)
                     rewards = memory_sample["rewards"].to(self.dqn.device)
-                    next_states = memory_sample["next_states"].to(self.dqn.device)
+                    next_states = memory_sample["next_states"].to(
+                        self.dqn.device)
                     dones = memory_sample["dones"].to(self.dqn.device)
 
                     #! most likely there is work to be done at this point
@@ -101,8 +134,23 @@ class TD3Agent:
                     q_values = self.dqn(states)
                     next_q_values = self.dqn(next_states)
 
+                    # print(f"{q_values.shape=}")
+                    # https://stackoverflow.com/questions/50999977/what-does-the-gather-function-do-in-pytorch-in-layman-terms
+                    #! why would we even do the sqeueeze unsqueeze stuff
+                    # q_values = q_values.gather(
+                    #     1, actions.type(torch.int64).unsqueeze(1)).squeeze(1)
+                    #! the q_values tensor is currently shape (batch_size, n_action_discr)
+                    #! for the calculation of mse loss we need to have a tensor
+                    #! with shape: batch_size. Since all values along the 
+                    #! n_action_disr dimension are the same we can just take
+                    #! [:,0] (we could take any other value i.e. [:,4])
+                    #! THIS IS REALLY NOT A GOOD WAY TO DO IT
+                    q_values = q_values.gather(1, actions.type(torch.int64))[:,0]
+                    next_q_values = next_q_values.max(1)[0]
+
                     #! Does 1-dones work?
-                    expected_q_values = rewards + self.gamma*next_q_values*(1-dones)
+                    expected_q_values = rewards + \
+                        self.gamma*next_q_values*(1-dones)
                     #! is this correct?
                     loss = F.mse_loss(expected_q_values, q_values)
                     self.optimizer.zero_grad()
@@ -110,8 +158,44 @@ class TD3Agent:
                     self.optimizer.step()
 
                     #! does this work?
-                    episode_losses.append(loss)
+                    episode_loss.append(loss)
 
-                #! does this work?
+                #! does this work? since we do not use npaths? or do we?
                 cumulative_rewards += rewards
-                epoch_rewards.append(cumulative_rewards)
+                episode_len += 1
+
+                #! do we want to run n paths?
+                # we can run more than one path at a time. In this case
+                # we need to reduce the dones array to a single value.
+                if type(dones) == ndarray:
+                    # .all() only evaluates to True if all elements are True
+                    dones = dones.all()
+
+                # average the cumulative rewards (1D array) of n_paths into one
+                # value
+                # referred as "rewards path average"
+                rewards_path_avg = np.mean(cumulative_rewards)
+
+                episode_reward_history.append(rewards_path_avg)
+
+            # Stores the path averaged cumulative rewards of each episode
+            epoch_rewards_history.append(rewards_path_avg)
+
+            # average over the path averages of the last 100 episodes
+            # referred as "rewards history average"
+            rewards_history_avg = np.mean(epoch_rewards_history[-100:])
+            epoch_losses.append(episode_loss)
+
+            # Saves the most recent high score in terms of rewards_history_avg
+            # In case of new high scores, the model parameters are saved
+            if rewards_history_avg > best_reward:
+                best_reward = rewards_history_avg
+                self.save_models()
+
+            if epoch % 100 == 0:
+                print(
+                    "Epoch ",
+                    epoch,
+                    "Cumulative Score %.2f" % rewards_path_avg,
+                    "Trailing 100 steps avg %.3f" % rewards_history_avg,
+                )

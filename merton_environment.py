@@ -18,6 +18,7 @@ import time  # needed to wait for window to open
 # Setup logger
 logger = logging.getLogger(__name__)
 
+
 class MertonEnvironment:
     def __init__(
         self,
@@ -31,6 +32,7 @@ class MertonEnvironment:
         n_paths: int = 1,
         T: int = 1,
         n_discr: int = 1,
+        n_action_discr: int = 1,
         seed: int = None,
         render=False,
     ):
@@ -51,13 +53,12 @@ class MertonEnvironment:
         # We want to keep the nomenclature so that we are able to call
         # other environments accordingly. See documentation of gym
         # environment
+        # number of discretizations for possible actions that the agend
+        # can choose
+        self.n_action_discr = n_action_discr
         self.observation_space = self.ObservationSpace()
-        self.action_space = self.ActionSpace(self.rng, n_paths)
-        # utes = 15
-        # u_star = np.linspace(0,5, utes)
-        # inv_range = u_star
-        # self.action_space = spaces.Discrete(len(inv_range))
-        # self.observation_space = spaces.Box(0,120, np.array([2]))
+        self.action_space = self.ActionSpace(
+            self.rng, n_paths, self.n_action_discr)
 
         # Number of trajectories to be simulated. In the easiest case
         # this includes the number of stock trajectories
@@ -271,7 +272,7 @@ class MertonEnvironment:
             # Pull a weight from the distribution. It can allow the agent to
             # go into a short position. This value is decided as the mean
             # of distribution.
-            actions = self.rng.randrange(self.n_action_discr)
+            actions = self.rng.randint(self.n_action_discr)
             # Return a relative action
             return actions
 
