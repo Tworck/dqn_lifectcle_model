@@ -3,3 +3,4 @@ __pycache__
 other_model/ddqn_relative/lib/envs/runs
 other_model/ddqn_relative/lib/envs/.ipynb_checkpoints
 other_model/ddqn_relative/lib/envs/.market.py.swp
+models/

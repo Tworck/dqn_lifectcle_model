@@ -1,15 +1,14 @@
-from play_market import play_strategy
 from network_utils import *
 import merton_environment as env
 from neural_network_dqn import DQN
 from buffer import ReplayBuffer
 from dqn_agent import DQNAgent
+from plot_agent_performance import *
 
 import torch
 import torch.autograd as autograd
 import torch.optim as optim
 import numpy as np
-import math
 from datetime import datetime
 
 from IPython.display import clear_output
@@ -22,8 +21,10 @@ if __name__ == "__main__":
     Variable = lambda *args, **kwargs: autograd.Variable(
         *args, **kwargs).cuda() if USE_CUDA else autograd.Variable(*args, **kwargs)
 
-    MODEL_NAME = "test1"
+    MODEL_NAME = "DQN Network"
     SAVE_DIR = "./models"
+    TRAIN = True
+    LOAD = False
 
     name_prefix = datetime.now().strftime("%Y_%m_%d_%Hh%Mm%Ss") + "_"
     # name_prefix = "2021_01_27_17h05m27s_"
@@ -74,24 +75,10 @@ if __name__ == "__main__":
         n_discr=n_discr,
         n_action_discr=n_action_discr,
         seed=seed,
+        # render=False,
         render=False,
     )
-    market_test = env.MertonEnvironment(
-        wealth_0,
-        rf,
-        mu,
-        sigma,
-        kappa,
-        stock_price=stock_price,
-        bond_price=bond_price,
-        n_paths=n_paths,
-        T=T,
-        n_discr=n_discr,
-        n_action_discr=n_action_discr,
-        seed=seed,
-        render=False,
-    )
-
+ 
     state_dims = market_train.observation_space.shape[0]
     action_dims = market_train.action_space.shape[0]
 
@@ -100,7 +87,8 @@ if __name__ == "__main__":
         MODEL_NAME,
         state_dims,
         action_dims,
-        market_train)
+        market_train,
+        checkpoint_dir=save_dir)
 
     if USE_CUDA:
         model = model.cuda()
@@ -124,65 +112,32 @@ if __name__ == "__main__":
         epsilon_decay=epsilon_decay,
     )
 
-    agent.train()
+    if TRAIN:
+        agent.train()
+    elif LOAD:
+        # The correct model name has to be initialized in DQN for this
+        agent.load() 
 
-    # #! -------- Test --------
-    # if train == False:
-    #     load_model(model, path_to_load)
+    last_episode_utilities_test, \
+    last_episode_cum_rewards_test, \
+    last_episode_wealths_test, \
+    episode_rewards_test, \
+    episode_wealth_test  = agent.play_market(agent="Test")
 
-    # utilities = []
-    # rewards = []
-    # step_rewards = []
-    # wealth_epochs = []
-    # rewards_sum = 0
+    last_episode_utilities_merton, \
+    last_episode_cum_rewards_merton, \
+    last_episode_wealths_merton, \
+    episode_rewards_merton, \
+    episode_wealth_merton  = agent.play_market(agent="Merton")
 
-    # #? epochs + 1 and then in for loop range(epochs - 1) ???
-    # for epoch in range(test_epochs):
+    last_episode_utilities_random, \
+    last_episode_cum_rewards_random, \
+    last_episode_wealths_random, \
+    episode_rewards_random, \
+    episode_wealth_random  = agent.play_market(agent="Random")
 
-    #     if epoch % 10000 == 0:
-    #         print(epoch)
-
-    #     state = market_test.reset()
-    #     # I think that no argmax().item() is needed since we sample continous
-    #     # actions. item() is required to take the value out of the torch tensor
-    #     action = model(Variable(torch.FloatTensor(np.float32(state)))).item()#.argmax().item()
-    #     # print(action)
-
-    #     while True:
-    #         state, reward, done, _  = market_test.step(action)
-    #         action = model(Variable(torch.FloatTensor(np.float32(state)))).item()#.argmax().item()
-    #         rewards_sum += reward
-
-    #         step_rewards.append(reward)
-
-    #         if done:
-    #             wealth_epochs.append(state[0])
-    #             utilities.append(np.log(state[0]))
-    #             rewards.append(rewards_sum)
-    #             break
-
-    # utilities_test_rand, rewards_test_rand, step_rew_rand, wealth_test_rand = play_strategy(
-    #                                                                                         wealth_0,
-    #                                                                                         rf,
-    #                                                                                         mu,
-    #                                                                                         sigma,
-    #                                                                                         kappa,
-    #                                                                                         "Random",
-    #                                                                                         n_paths = n_paths,
-    #                                                                                         T = T,
-    #                                                                                         n_discr = n_discr,
-    #                                                                                         epochs=100000,
-    #                                                                                         )
-
-    # utilities_test_rand, rewards_test_rand, step_rew_rand, wealth_test_rand = play_strategy(
-    # wealth_0,
-    # rf,
-    # mu,
-    # sigma,
-    # kappa,
-    # "Merton",
-    # n_paths = n_paths,
-    # T = T,
-    # n_discr = n_discr,
-    # epochs=100000,
-    # )
+    make_agent_graphs(
+        last_episode_cum_rewards_merton, last_episode_cum_rewards_random, last_episode_cum_rewards_test,
+        last_episode_utilities_merton, last_episode_utilities_random,last_episode_utilities_test,
+        last_episode_wealths_merton, last_episode_wealths_random, last_episode_wealths_test
+    )

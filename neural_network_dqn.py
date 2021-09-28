@@ -98,17 +98,18 @@ class DQN(nn.Module, NetworkUtils):
     
     def act(self, state, epsilon):
         if random.random() > epsilon:
-            print("greedy")
+            # print("greedy")
             
             q_value = self.forward(torch.tensor(state).to(self.device))
             # print(f"{q_value=}")
             action = q_value
             action  = q_value.argmax().item()
+            # print(f"{action=}")
 
         else:
-            print("random")
+            # print("random")
             action = self.env.action_space.sample()
-            print(f"{action=}")
+            # print(f"{action=}")
         return action
 
 #%%

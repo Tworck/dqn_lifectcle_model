@@ -112,6 +112,7 @@ class MertonEnvironment:
 
         # weight = actions.squeeze()
         weight = actions
+        # print(weight)
 
         if self.t < self.n_discr:
 
@@ -123,6 +124,8 @@ class MertonEnvironment:
 
             # new_wealth is an absolute value
             self.new_wealth = self.wealth * self.portfolio_growth
+            #! Clipping might not be necessary
+            self.new_wealth = self.new_wealth.clip(1e-6)
 
             rewards = self.reward()
             # states array needs to have shape (n_paths, states)
@@ -144,8 +147,8 @@ class MertonEnvironment:
             dones = np.repeat(True, self.n_paths)
 
         # Save as attributes for rendering later on
-        # self.rewards = rewards.copy()
-        # self.states = states.copy()
+        self.rewards = rewards.copy()
+        self.states = states.copy()
         # self.actions = actions.copy()
 
         return (states, rewards, dones, {})
@@ -178,13 +181,11 @@ class MertonEnvironment:
         return states
 
     def reward(self):
-        d_wealth = self.new_wealth - self.wealth
-        # * ----- wealth calculated in relative terms:
-        # d_relative_wealth = portfolio_growth - 1
-        # this for needs to change state space
+        # d_wealth = self.new_wealth - self.wealth
+        #! is the order correct now?
+        rewards = np.log(1+self.new_wealth/self.wealth)
+        # rewards = d_wealth - (self.kappa / 2) * (d_wealth ** 2)
         self.wealth = self.new_wealth
-        # rewards = np.log(1+d_wealth/self.wealth)
-        rewards = d_wealth - (self.kappa / 2) * (d_wealth ** 2)
         # print(rewards)
         return rewards.squeeze()
 
