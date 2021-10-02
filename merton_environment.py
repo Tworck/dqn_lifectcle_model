@@ -181,10 +181,11 @@ class MertonEnvironment:
         return states
 
     def reward(self):
-        # d_wealth = self.new_wealth - self.wealth
+        d_wealth = self.new_wealth - self.wealth
         #! is the order correct now?
-        rewards = np.log(1+self.new_wealth/self.wealth)
-        # rewards = d_wealth - (self.kappa / 2) * (d_wealth ** 2)
+        # rewards = np.log(1+self.new_wealth/self.wealth)
+        rewards = d_wealth - \
+            (self.kappa / 2) * (d_wealth ** 2)
         self.wealth = self.new_wealth
         # print(rewards)
         return rewards.squeeze()

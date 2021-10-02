@@ -34,10 +34,10 @@ class ReplayBuffer:
 
     Args:
         state_dims (int): Number of dimensions of a typical state.
-            Example: states = (path_index, [age, p_income_factor, wealth])
-            then state_dims = 3
+            Example: states = (path_index, [stock price, wealth])
+            then state_dims = 2
         action_dims (int): Number of dimensions of the action space.
-            Example : action = [bonds, consumption, stocks], action_dims = 3
+            Example : action = [equity ratio], action_dims = 1
         mem_factor (int): Hyperparameter used to provide a constant
             relative scaling between maximum buffer size and number of paths
         n_paths (int, optional): Number of games that are played
@@ -45,8 +45,9 @@ class ReplayBuffer:
     """
 
     def __init__(
-        self, state_dims: int, action_dims: int, mem_factor: int, n_paths: int = 1,
+        self, state_dims: int, action_dims: int, mem_factor: int, seed, n_paths: int = 1,
     ):
+        self.rng = seed
 
         logger.info("""Initializing replay memory...""")
         logger.info(f"""Memory factor set to {mem_factor}.""")
@@ -168,7 +169,8 @@ class ReplayBuffer:
         logger.info(f"""Max memory size is {max_mem}.""")
         # random.choice samples multiple integer values within a given
         # range. For our purposes it is equivalent to randint.
-        idxs = np.random.choice(max_mem, batch_size)
+        # idxs = self.rng.choice(max_mem, batch_size)
+        idxs = self.rng.choice(max_mem, batch_size)
 
         # create batch dictionary which is going to be cast into tensors
         batch = dict(

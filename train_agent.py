@@ -1,5 +1,6 @@
 from network_utils import *
-import merton_environment as env
+# import merton_environment as env
+import merton_environment_absolut as env
 from neural_network_dqn import DQN
 from buffer import ReplayBuffer
 from dqn_agent import DQNAgent
@@ -21,6 +22,7 @@ if __name__ == "__main__":
     Variable = lambda *args, **kwargs: autograd.Variable(
         *args, **kwargs).cuda() if USE_CUDA else autograd.Variable(*args, **kwargs)
 
+    # 2021_09_30_14h29m00s_DQN Network This was trained with 1000000 epochs
     MODEL_NAME = "DQN Network"
     SAVE_DIR = "./models"
     TRAIN = True
@@ -42,10 +44,10 @@ if __name__ == "__main__":
     epsilon_final = 0.01
     epsilon_decay = 500
 
-    # training_epochs = 1000000
-    training_epochs = 1000
-    # test_epochs = 100000
-    test_epochs = 1000
+    train_epochs = 1000000
+    # train_epochs = 5000
+    test_epochs = 1000000
+    # test_epochs = 1000
 
     rf = 0.02
     mu = 0.1
@@ -62,6 +64,7 @@ if __name__ == "__main__":
     seed = 0
 
     # Initialize two environments. One for training and one for testing
+    #* Both markets return same compound stocks and bonds: tested
     market_train = env.MertonEnvironment(
         wealth_0,
         rf,
@@ -78,7 +81,9 @@ if __name__ == "__main__":
         # render=False,
         render=False,
     )
- 
+    
+    seedGenerator = market_train.rng
+
     state_dims = market_train.observation_space.shape[0]
     action_dims = market_train.action_space.shape[0]
 
@@ -96,14 +101,16 @@ if __name__ == "__main__":
     # Initialize optimizer and replay buffer
     optimizer = optim.Adam(model.parameters())
     replay_buffer = ReplayBuffer(
-        state_dims, action_dims, buffer_size, n_paths=n_paths)
+        state_dims, action_dims, buffer_size, seedGenerator, n_paths=n_paths)
 
     agent = DQNAgent(
         MODEL_NAME,
         market_train,
         model,
         optimizer,
-        training_epochs,
+        replay_buffer,
+        train_epochs,
+        test_epochs,
         buffer_size,
         batch_size=32,
         gamma=gamma,
@@ -121,20 +128,17 @@ if __name__ == "__main__":
     last_episode_utilities_test, \
     last_episode_cum_rewards_test, \
     last_episode_wealths_test, \
-    episode_rewards_test, \
-    episode_wealth_test  = agent.play_market(agent="Test")
+    episode_rewards_test = agent.play_market(agent="Test")
 
     last_episode_utilities_merton, \
     last_episode_cum_rewards_merton, \
     last_episode_wealths_merton, \
-    episode_rewards_merton, \
-    episode_wealth_merton  = agent.play_market(agent="Merton")
+    episode_rewards_merton = agent.play_market(agent="Merton")
 
     last_episode_utilities_random, \
     last_episode_cum_rewards_random, \
     last_episode_wealths_random, \
-    episode_rewards_random, \
-    episode_wealth_random  = agent.play_market(agent="Random")
+    episode_rewards_random  = agent.play_market(agent="Random")
 
     make_agent_graphs(
         last_episode_cum_rewards_merton, last_episode_cum_rewards_random, last_episode_cum_rewards_test,

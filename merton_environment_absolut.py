@@ -19,7 +19,7 @@ import time  # needed to wait for window to open
 logger = logging.getLogger(__name__)
 
 
-class MertonEnvironmentAbs:
+class MertonEnvironment:
     def __init__(
         self,
         wealth_0: float,
@@ -32,6 +32,7 @@ class MertonEnvironmentAbs:
         n_paths: int = 1,
         T: int = 1,
         n_discr: int = 1,
+        n_action_discr: int = 1,
         seed: int = None,
         render=False,
     ):
@@ -52,8 +53,17 @@ class MertonEnvironmentAbs:
         # We want to keep the nomenclature so that we are able to call
         # other environments accordingly. See documentation of gym
         # environment
+        # number of discretizations for possible actions that the agend
+        # can choose
+        self.n_action_discr = n_action_discr
         self.observation_space = self.ObservationSpace()
-        self.action_space = self.ActionSpace(self.rng, n_paths)
+        self.action_space = self.ActionSpace(
+            self.rng, n_paths, self.n_action_discr)
+
+        #! Important: In discrete models we need an array that contains
+        #! the possible actions
+        self.equity_ratios = np.linspace(self.action_space.low,
+                                         self.action_space.high, self.n_action_discr)
 
         # Number of trajectories to be simulated. In the easiest case
         # this includes the number of stock trajectories
@@ -92,7 +102,7 @@ class MertonEnvironmentAbs:
         # Initialize the bonds, stocks and difference matrices
         self.s = np.zeros((self.n_paths, self.n_discr + 1))
         self.b = np.zeros((self.n_paths, self.n_discr + 1))
-        self.d_b = np.ones((self.n_paths, self.n_discr))
+        self.d_b = np.zeros((self.n_paths, self.n_discr))
         self.d_s = np.zeros((self.n_paths, self.n_discr))
 
         self.b[:, 0] = self.bond_price * np.ones(self.n_paths)
@@ -115,7 +125,15 @@ class MertonEnvironmentAbs:
             time.sleep(2)
 
     def step(self, actions: ndarray):
-        weight = actions
+
+        #! Not a good solution. If the environment is stepped through
+        #! with Merton agent, the actions are floats rather than indexes 
+        #! (which are int type).
+        #todo this will not work with multiple paths I think
+        if type(actions) == int:
+            weight = self.equity_ratios[actions]
+        else:
+            weight = actions
 
         if self.t < self.n_discr:
             n_stocks = weight * self.wealth / self.s[:, self.t]
@@ -138,8 +156,9 @@ class MertonEnvironmentAbs:
             # print(f"{d_x.shape= }")
             # print(f"{self.wealth= }")
             # print(f"{self.wealth.shape= }")
+            self.t += 1  # ! this had to be moved here
 
-            states = np.array([
+            self.states = np.array([
                 self.s[:, self.t],
                 self.wealth[:]
             ],
@@ -150,23 +169,22 @@ class MertonEnvironmentAbs:
 
             logger.info(
                 "Next state reached. Successfully stepped through environment.")
-            self.t += 1
 
         else:
             logging.info(f"Environment has reached last step. ({self.t})")
-            rewards = np.zeros(n_paths)
-            d_x = np.zeros(n_paths)
+            rewards = np.zeros(self.n_paths)
+            d_x = np.zeros(self.n_paths)
             self.final_wealth = self.wealth
             dones = np.repeat(True, self.n_paths)
 
             _ = self.reset()
 
         # Save as attributes for rendering later on
-        self.rewards = rewards.copy()
-        self.states = states.copy()
-        self.actions = actions.copy()
+        # self.rewards = rewards.copy()
+        # self.states = states.copy()
+        # self.actions = actions.copy()
 
-        return (states, rewards, dones, {"final wealth": self.final_wealth},)
+        return (self.states, rewards, dones, {"d_x": d_x},)
 
     def reset(self):
         # Set time step to 0
@@ -179,16 +197,16 @@ class MertonEnvironmentAbs:
         self.wealth = self.wealth_0 * np.ones(self.n_paths)
         # print("reset", f"{self.wealth=}")
 
-        states = np.array([
+        self.states = np.array([
             self.s[:, self.t],
             self.wealth[:]
         ],
             dtype="float32"
         ).T
 
-        self.states = states.copy()
+        # self.states = states.copy()
         # print("reset", f"{self.states=}")
-        return states
+        return self.states
 
     def stocks_bonds_prices(self):
         # Create a matrix of random variables for calculation of the
@@ -213,8 +231,8 @@ class MertonEnvironmentAbs:
         # print(f"{z.shape= }")
         # print(f"{self.s.shape= }")
         # print(f"{self.b.shape= }")
-        print(f"{self.s= }")
-        print(f"{self.b= }")
+        # print(f"{self.s= }")
+        # print(f"{self.b= }")
 
         for t in range(1, self.n_discr):
             self.d_s[:, t] = self.s[:, t+1] - self.s[:, t]
@@ -224,6 +242,14 @@ class MertonEnvironmentAbs:
         # print(f"{self.d_b.shape= }")
 
         # print(f"Shape of Bond and Stock return array:\n {s.shape=}, {b.shape=}")
+
+    def merton_ratio(self):
+        merton_ratio = (self.mu - self.rf) / self.sigma ** 2
+        return merton_ratio
+
+    def mu_from_ratio(self, equity_ratio: ndarray):
+        mu = (self.sigma**2 * equity_ratio) + self.rf
+        return mu
 
     def render(self):
         if hasattr(self, "actions"):
@@ -248,16 +274,13 @@ class MertonEnvironmentAbs:
                 stochastic variables.
         """
 
-        def __init__(self, rng, n_paths):
+        def __init__(self, rng, n_paths, n_action_discr):
             self.rng = rng
             self.n_paths = n_paths
-            self.shape = (1,)
-            # Attributes high and low are constructed according to the
-            # "class" Box in open AI gym
-            # * In case of weight for merton model we assume that the
-            # * agent is able to go short in his/hers positions
-            self.high = np.array([5], dtype=np.float32)
-            self.low = np.array([-5], dtype=np.float32)
+            self.n_action_discr = n_action_discr
+            self.low = 0
+            self.high = 5
+            self.shape = (n_action_discr,)
 
         def sample(self):  # -> ndarray:
             """Sample random actions from a uniformly distributed
@@ -282,9 +305,7 @@ class MertonEnvironmentAbs:
             # Pull a weight from the distribution. It can allow the agent to
             # go into a short position. This value is decided as the mean
             # of distribution.
-            actions = self.rng.uniform(
-                low=self.low, high=self.high, size=(self.n_paths, 1))
-            # print(f"{actions.shape= }")
+            actions = self.rng.randint(self.n_action_discr)
             # Return a relative action
             return actions
 
@@ -336,7 +357,7 @@ class MertonEnvironmentAbs:
             self.queue = multiprocessing.Queue()
 
             self.update_intervall = update_intervall  # ms
-            self.end_time = environment.T
+            self.end_time = environment.n_discr
             self.env = environment
 
             # --- Preallocate arrays that hold the average data
@@ -411,7 +432,7 @@ class MertonEnvironmentAbs:
             self.stocks = self.state_plot.plot(
                 pen=stocks_pen, name="stocks growth")
             self.wealth = self.state_plot.plot(
-                pen=wealth_pen, name="wealth")
+                pen=wealth_pen, name="portfolio growth")
             self.weight = self.action_plot.plot(pen=weight_pen, name="weight")
 
             self.reward = self.reward_plot.plot(pen=reward_pen, name="reward")
@@ -420,7 +441,7 @@ class MertonEnvironmentAbs:
             while not self.queue.empty():
                 self.t, actions, states, rewards = self.queue.get()
 
-                if self.t == 0:
+                if self.t == 1:  # needed to change this to one for some reason
                     self.avg_states[self.t] = np.mean(states, axis=0)
                 elif self.t == self.end_time:
                     self.avg_actions[self.t - 1] = np.mean(actions, axis=0)
@@ -430,19 +451,19 @@ class MertonEnvironmentAbs:
                     self.avg_states[self.t] = np.mean(states, axis=0)
                     self.avg_actions[self.t - 1] = np.mean(actions, axis=0)
                     self.avg_reward[self.t - 1] = np.mean(rewards)
-            # print(f"{self.avg_states.shape=}")
+
             if hasattr(self, "t"):
                 self.update_plot()
 
         def update_plot(self):
             # --- Update plots
             # this is the stock array
-            self.stocks.setData(self.avg_states[:self.t, 0])
-            self.wealth.setData(self.avg_states[:self.t, 1])
+            self.stocks.setData(self.avg_states[: self.t, 0])
+            self.wealth.setData(self.avg_states[: self.t, 1])
             # this is the "weight"
-            self.weight.setData(self.avg_actions[:self.t, 0])
+            self.weight.setData(self.avg_actions[: self.t, 0])
 
-            self.reward.setData(self.avg_reward[:self.t])
+            self.reward.setData(self.avg_reward[: self.t])
 
 
 if __name__ == "__main__":
@@ -491,5 +512,5 @@ if __name__ == "__main__":
             # actions = np.random.uniform(low=0, high=1, size=(n_paths,))
             actions = (np.ones(n_paths) * 2)
 
-    print(np.array(states_list)[:,0, 1])
+    print(np.array(states_list)[:, 0, 1])
     # env.renderer.join()
