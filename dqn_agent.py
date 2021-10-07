@@ -169,24 +169,24 @@ class DQNAgent:
 
             # Saves the most recent high score in terms of rewards_history_avg
             # In case of new high scores, the model parameters are saved
-            if epoch % 1000 == 0:
-                self.save_models()
+            # if epoch % 1000 == 0:
+            #     self.save_models()
 
-                clear_output(True)
-                plt.figure(figsize=(20,5))
-                plt.subplot(121)
-                plt.grid()
-                plt.title('Epoch %s. reward' % (epoch))
-                plt.plot(epoch_rewards)
+            #     clear_output(True)
+            #     plt.figure(figsize=(20,5))
+            #     plt.subplot(121)
+            #     plt.grid()
+            #     plt.title('Epoch %s. reward' % (epoch))
+            #     plt.plot(epoch_rewards)
 
-                plt.subplot(122)
-                plt.grid()
-                plt.title('Epoch %s. Loss' % (epoch))
-                plt.plot(losses)
+            #     plt.subplot(122)
+            #     plt.grid()
+            #     plt.title('Epoch %s. Loss' % (epoch))
+            #     plt.plot(losses)
 
-                plt.show(block=False)
-                plt.pause(1)
-                plt.close()
+            #     plt.show(block=False)
+            #     plt.pause(1)
+            #     plt.close()
 
 
             if epoch % 100 == 0:
@@ -208,11 +208,11 @@ class DQNAgent:
         episode_rewards = []
         episode_wealth = []
 
-        for epoch in range(self.test_epochs):
+        with torch.no_grad():
 
-            states = self.env.reset()
+            for epoch in range(self.test_epochs):
 
-            with torch.no_grad():
+                states = self.env.reset()
 
                 while True:
 
@@ -243,23 +243,20 @@ class DQNAgent:
                         cumulative_rewards = 0
                         wealth = self.env.wealth_0
                         break
-            
-            if epoch % 100 == 0:
-                print(
-                    "Agent",
-                    agent,
-                    "Epoch ",
-                    epoch,
-                    # "Episode Reward %.2f" % episode_rewards,
-                    # "Epoch Rewards %.3f" % np.mean(epoch_rewards[-100:]),
-                )
-                  
-                    # if type(dones) == ndarray:
-                    #     # .all() only evaluates to True if all elements are True
-                    #     dones = dones.all()
+                
+                if epoch % 100 == 0:
+                    print(
+                        "Agent",
+                        agent,
+                        "Epoch ",
+                        epoch,
+                        # "Episode Reward %.2f" % episode_rewards,
+                        # "Epoch Rewards %.3f" % np.mean(epoch_rewards[-100:]),
+                    )
+                    
+                        # if type(dones) == ndarray:
+                        #     # .all() only evaluates to True if all elements are True
+                        #     dones = dones.all()
                         
-            
-
-
         return last_episode_utilities, last_episode_cum_rewards, \
             last_episode_wealths, episode_rewards

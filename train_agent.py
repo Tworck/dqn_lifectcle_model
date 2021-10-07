@@ -1,3 +1,6 @@
+import os
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
 from network_utils import *
 # import merton_environment as env
 import merton_environment_absolut as env
@@ -44,9 +47,9 @@ if __name__ == "__main__":
     epsilon_final = 0.01
     epsilon_decay = 500
 
-    train_epochs = 1000000
+    train_epochs = 10000
     # train_epochs = 5000
-    test_epochs = 1000000
+    test_epochs = 100000
     # test_epochs = 1000
 
     rf = 0.02
@@ -61,7 +64,7 @@ if __name__ == "__main__":
     n_discr = 20
     n_action_discr = 15
 
-    seed = 0
+    seed = 10
 
     # Initialize two environments. One for training and one for testing
     #* Both markets return same compound stocks and bonds: tested

@@ -97,7 +97,7 @@ class DQN(nn.Module, NetworkUtils):
         return self.layers(x)
     
     def act(self, state, epsilon):
-        if random.random() > epsilon:
+        if self.env.rng.rand() > epsilon:
             # print("greedy")
             
             q_value = self.forward(torch.tensor(state).to(self.device))
